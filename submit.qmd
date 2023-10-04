@@ -1,28 +1,157 @@
 ---
-title: ""
-author: ""
+title: "Lab 6- Text Mining"
+author: "Jayson De La O"
 format:
   html:
     embed-resources: true
 ---
 
-## Quarto
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
 
 ```{r}
-1 + 1
+library(tidytext)
+library(readr)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+library(magrittr)
+library(tidyverse)
 ```
 
-You can add options to executable code like this
+
 
 ```{r}
-#| echo: false
-2 * 2
+mt_samples <- read_csv("https://raw.githubusercontent.com/USCbiostats/data-science-data/master/00_mtsamples/mtsamples.csv")
+mt_samples <- mt_samples %>%
+  select(description, medical_specialty, transcription)
+
+head(mt_samples)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+QUESTION 1
+
+40 different categories of specialties. They are not related and not overlapping or evenly distributed .
+```{r}
+mt_samples %>%
+  count(medical_specialty, sort = TRUE)
+```
+
+QUESTION 2
+
+We see the most used words in the transcription column and some words are used a lot more than others. The words are what we would expect because they are mostly common words in everyday language and considered stop words. It makes sense because these are the words that are used to make sentences. Although, most of these words are common, we do get some insights from the words that are not stop words. The words "patient" is used about 22 thousand times, which could hint at something healthcare related or time related.
+```{r}
+  mt_samples %>%
+  unnest_tokens(token, transcription) %>%
+  count(token, sort = TRUE)%>%
+  top_n(20, n)
+
+
+
+mt_samples %>%
+  unnest_tokens(token, transcription) %>%
+  count(token, sort = TRUE)%>%
+  top_n(20, n) %>%
+  ggplot(aes(n, token)) +
+  geom_col()
+```
+
+QUESTION 3
+
+Removing the stop words gives us a better idea of what the text was about because now words that are commonly used should show some context of the writings. The commonly used words are mostly healthcare related words like patient, procedure,pain,mg, and blood.
+
+```{r}
+
+mt_samples %>%
+  unnest_tokens(token, transcription) %>%
+  filter(!str_detect(token, "[0-9]")) %>%
+  anti_join(stop_words, by = c("token" = "word")) %>%
+  count(token, sort = TRUE)%>%
+  top_n(20, n)
+
+mt_samples %>%
+  unnest_tokens(token, transcription) %>%
+  filter(!str_detect(token, "[0-9]")) %>%
+  anti_join(stop_words, by = c("token" = "word")) %>%
+  count(token, sort = TRUE)%>%
+  top_n(20, n)%>%
+  ggplot(aes(n, token)) +
+  geom_col()
+
+
+
+
+
+
+
+```
+
+QUESTION 4
+
+Tri-grams works much better because the stop words seem to be reintroduced if only looking at bi-grams. Using tri-grams we get more context for what the column is about. Tri-grams show three words that occur after each other and bi-grams is two words that are after each other.
+```{r}
+mt_samples %>%
+  unnest_ngrams(ngram, transcription, n = 2)  %>%
+  anti_join(stop_words, by = c("ngram" = "word")) %>%
+  count(ngram, sort = TRUE)%>%
+  top_n(20, n)
+
+mt_samples %>%
+  unnest_ngrams(ngram, transcription, n = 3)   %>%
+  anti_join(stop_words, by = c("ngram" = "word")) %>%
+  count(ngram, sort = TRUE)%>%
+  top_n(20, n)
+
+mt_samples %>%
+  unnest_ngrams(ngram, transcription, n = 2)  %>%
+  anti_join(stop_words, by = c("ngram" = "word")) %>%
+  count(ngram, sort = TRUE)%>%
+  top_n(20, n)  %>%
+  ggplot(aes(n, ngram)) +
+  geom_col()
+
+mt_samples %>%
+  unnest_ngrams(ngram, transcription, n = 3)   %>%
+  anti_join(stop_words, by = c("ngram" = "word")) %>%
+  count(ngram, sort = TRUE)%>%
+  top_n(20, n) %>%
+  ggplot(aes(n, ngram)) +
+  geom_col()
+```
+
+QUESTION 5
+
+I picked the word "patient".The code below count the number of times word 1 and word 3 come before and after the word patient.
+```{r}
+mt_samples %>%
+  unnest_ngrams(ngram, transcription, n = 3) %>%
+  separate(ngram, into = c("word1", "word2","word3"), sep = " ") %>%
+  select(word1, word2,word3) %>%
+  filter(word2 == "patient") %>%
+  count(word1,word3, sort = TRUE) 
+```
+
+
+QUESTION 6
+Top 5 words used in each specialty.
+```{r}
+mt_samples %>%
+  group_by(medical_specialty) %>%
+  unnest_tokens(token, transcription) %>%
+  filter(!str_detect(token, "[0-9]")) %>%
+  anti_join(stop_words, by = c("token" = "word")) %>%
+  count(token, sort = TRUE) %>%
+  top_n(5,n)
+```
+
+QUESTION 7 
+
+See if "patient" is used more in some specialties than others
+```{r}
+mt_samples %>%
+  group_by(medical_specialty) %>%
+  unnest_tokens(token, transcription) %>%
+  filter(token == "patient")%>%
+  count(token, sort = TRUE)
+
+```
+
